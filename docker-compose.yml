@@ -1,0 +1,57 @@
+services:
+
+  service-a:
+    build: ./services
+    container_name: service-a
+    environment:
+      SERVICE_NAME: service-a
+      SERVICE_ROLE: auth service
+    ports:
+      - "5001:5000"
+    networks: [mesh]
+    restart: unless-stopped
+
+  service-b:
+    build: ./services
+    container_name: service-b
+    environment:
+      SERVICE_NAME: service-b
+      SERVICE_ROLE: catalog service
+    ports:
+      - "5002:5000"
+    networks: [mesh]
+    restart: unless-stopped
+
+  service-c:
+    build: ./services
+    container_name: service-c
+    environment:
+      SERVICE_NAME: service-c
+      SERVICE_ROLE: order service
+    ports:
+      - "5003:5000"
+    networks: [mesh]
+    restart: unless-stopped
+
+  healer:
+    build: ./healer
+    container_name: healer
+    environment:
+      POLL_INTERVAL: "3"
+      WARMUP_SAMPLES: "12"
+      STRIKES_BEFORE_HEAL: "2"
+    ports:
+      - "8080:8080"
+    volumes:
+      # gives the healer permission to restart sibling containers
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - service-a
+      - service-b
+      - service-c
+    networks: [mesh]
+    restart: unless-stopped
+
+networks:
+  mesh:
+    driver: bridge

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Self-Healing Platform — Control Plane</title>
+<style>
+  :root{
+    --bg:#0c1116; --panel:#141b23; --panel-2:#1b242e; --line:#25313d;
+    --text:#e6edf3; --muted:#8b9bab;
+    --ok:#2ea86a; --warn:#d9a441; --bad:#e0524a; --accent:#3d8bfd;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  header{padding:20px 28px;border-bottom:1px solid var(--line);
+         display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13px}
+  .spacer{flex:1}
+  .stat{font-size:13px;color:var(--muted)}
+  .stat b{color:var(--text);font-variant-numeric:tabular-nums}
+  main{padding:24px 28px;display:grid;grid-template-columns:1fr 380px;
+       gap:22px;align-items:start}
+  @media(max-width:1000px){main{grid-template-columns:1fr}}
+  .cards{display:grid;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);
+        border-radius:10px;padding:16px 18px}
+  .card.alert{border-color:var(--bad);box-shadow:0 0 0 1px rgba(224,82,74,.25)}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .name{font-weight:650;font-size:15px}
+  .role{color:var(--muted);font-size:12px}
+  .badge{margin-left:auto;font-size:11px;padding:3px 9px;border-radius:99px;
+         font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+  .reason{color:var(--muted);font-size:12.5px;margin:6px 0 14px;font-family:var(--mono)}
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .metric{background:var(--panel-2);border-radius:7px;padding:9px 11px}
+  .metric span{display:block;color:var(--muted);font-size:10.5px;
+               text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+  .metric b{font-size:16px;font-variant-numeric:tabular-nums;font-weight:600}
+  .chaos{margin-top:13px;display:flex;gap:7px;flex-wrap:wrap}
+  button{background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+         border-radius:6px;padding:6px 11px;font-size:12px;cursor:pointer;
+         font-family:inherit;transition:.15s}
+  button:hover{border-color:var(--accent);color:#fff}
+  button.reset{margin-left:auto}
+  .side{background:var(--panel);border:1px solid var(--line);
+        border-radius:10px;padding:16px 18px;position:sticky;top:24px}
+  .side h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;
+           color:var(--muted);margin:0 0 12px;font-weight:600}
+  .log{max-height:62vh;overflow-y:auto;font-family:var(--mono);font-size:12px}
+  .ev{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid var(--line);
+      line-height:1.45}
+  .ev:last-child{border:0}
+  .ev time{color:var(--muted);flex:none}
+  .ev .svc{color:var(--accent);flex:none}
+  .k-heal{color:var(--ok);font-weight:600}
+  .k-anomaly{color:var(--warn)}
+  .k-error{color:var(--bad)}
+  .k-info{color:var(--muted)}
+  .empty{color:var(--muted);font-size:13px;padding:20px 0;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Self-Healing Multi-Cloud Platform</h1>
+    <div class="sub">Autonomous anomaly detection &amp; container recovery</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="stat">Detectors trained <b id="trained">0/3</b></div>
+  <div class="stat">Auto-heals <b id="heals">0</b></div>
+  <div class="stat">Last check <b id="tick">—</b></div>
+</header>
+
+<main>
+  <div class="cards" id="cards">
+    <div class="empty">Connecting to control plane…</div>
+  </div>
+
+  <aside class="side">
+    <h2>Event stream</h2>
+    <div class="log" id="log"><div class="empty">Waiting for events…</div></div>
+  </aside>
+</main>
+
+<script>
+const COLORS = { ok:'var(--ok)', warn:'var(--warn)', bad:'var(--bad)' };
+
+function stateOf(s){
+  if(!s.reachable) return {label:'Unreachable', color:COLORS.bad, alert:true};
+  if(s.anomalous)  return {label:'Anomaly',     color:COLORS.bad, alert:true};
+  if(s.reason === 'still learning baseline')
+                   return {label:'Learning',    color:COLORS.warn, alert:false};
+  return {label:'Healthy', color:COLORS.ok, alert:false};
+}
+
+function card(s){
+  const st = stateOf(s);
+  return `
+  <div class="card ${st.alert?'alert':''}">
+    <div class="top">
+      <span class="dot" style="background:${st.color}"></span>
+      <span class="name">${s.service}</span>
+      <span class="role">${s.role || ''}</span>
+      <span class="badge" style="background:${st.color}22;color:${st.color}">${st.label}</span>
+    </div>
+    <div class="reason">${s.reason} · score ${s.anomaly_score ?? '—'} · healed ${s.heals}×</div>
+    <div class="metrics">
+      <div class="metric"><span>CPU</span><b>${(s.cpu_percent??0).toFixed(1)}%</b></div>
+      <div class="metric"><span>Memory</span><b>${(s.memory_percent??0).toFixed(1)}%</b></div>
+      <div class="metric"><span>Latency</span><b>${Math.round(s.latency_ms??0)}ms</b></div>
+      <div class="metric"><span>Errors</span><b>${((s.error_rate??0)*100).toFixed(1)}%</b></div>
+    </div>
+    <div class="chaos">
+      <button onclick="chaos('${s.service}','cpu')">Inject CPU leak</button>
+      <button onclick="chaos('${s.service}','latency')">Inject latency</button>
+      <button onclick="chaos('${s.service}','crash')">Crash service</button>
+      <button class="reset" onclick="chaos('${s.service}','reset')">Reset</button>
+    </div>
+  </div>`;
+}
+
+function evRow(e){
+  return `<div class="ev">
+    <time>${e.time}</time>
+    <span class="svc">${e.service}</span>
+    <span class="k-${e.kind}">${e.message}</span>
+  </div>`;
+}
+
+async function chaos(service, kind){
+  try{ await fetch(`/api/chaos/${service}/${kind}`, {method:'POST'}); }
+  catch(err){ console.error(err); }
+  refresh();
+}
+
+async function refresh(){
+  try{
+    const r = await fetch('/api/status');
+    const d = await r.json();
+
+    document.getElementById('cards').innerHTML =
+      d.services.length ? d.services.map(card).join('')
+                        : '<div class="empty">No services reporting yet…</div>';
+
+    document.getElementById('log').innerHTML =
+      d.events.length ? d.events.map(evRow).join('')
+                      : '<div class="empty">Waiting for events…</div>';
+
+    document.getElementById('trained').textContent = `${d.trained.length}/${d.services.length||3}`;
+    document.getElementById('heals').textContent = d.total_heals;
+    document.getElementById('tick').textContent =
+      d.services[0]?.checked_at || '—';
+  }catch(err){ console.error(err); }
+}
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
