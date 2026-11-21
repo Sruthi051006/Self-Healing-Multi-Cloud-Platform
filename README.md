@@ -7,6 +7,12 @@ intervention.
 
 ---
 
+
+## Off Campus Verification
+
+Off Campus Code: XWZM95
+
+
 ## The Problem
 
 Modern applications run as dozens of microservices across cloud infrastructure.
@@ -66,41 +72,10 @@ automatically.
 
 ---
 
-## Quick Start
 
-**Requirements:** Docker and Docker Compose.
 
-```bash
-git clone <your-repo-url>
-cd self-healing-platform
-docker compose up --build
-```
 
-Then open **http://localhost:8080**
 
-Wait ~40 seconds. You will see each service move from `Learning` to `Healthy`
-as its detector finishes training.
-
----
-
-## Demo Script
-
-This is the flow to run in front of judges:
-
-| Step | Action | What to point out |
-|------|--------|-------------------|
-| 1 | Open the dashboard | Three services, all green, detectors training |
-| 2 | Wait for `3/3` trained | "It just learned the baseline by itself — nothing was hardcoded" |
-| 3 | Click **Inject CPU leak** on `service-a` | CPU climbs; within ~3s the card turns red |
-| 4 | Watch the event stream | It names the reason: *"cpu percent outside learned baseline"* |
-| 5 | Keep watching | After 2 strikes: `restarting container` → `restarted successfully` |
-| 6 | Service returns to green | Total downtime measured in seconds, no human involved |
-| 7 | Try **Crash service** on `service-c` | Health check fails → immediate anomaly → auto-heal |
-
-The chaos buttons are the demo's centrepiece: judges can break the system
-themselves and watch it repair itself.
-
----
 
 ## Project Structure
 
@@ -145,15 +120,4 @@ Tunable through environment variables on the `healer` service:
 
 ---
 
-## Roadmap
 
-- [ ] **Kubernetes deployment** — replace Docker restarts with pod-level
-      healing via the Kubernetes API, adding rescheduling and rolling restarts
-- [ ] **Prometheus + Grafana** — swap the JSON metrics endpoint for standard
-      Prometheus exposition format
-- [ ] **Multi-cloud failover** — run replicas across two cloud providers and
-      shift traffic when an entire region degrades
-- [ ] **Predictive scaling** — forecast load with time-series models and scale
-      ahead of demand rather than reacting to it
-- [ ] **Root cause suggestions** — correlate anomalies across services to
-      identify the originating failure in a dependency chain
